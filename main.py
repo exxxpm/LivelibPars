@@ -2,7 +2,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException
 
-import time
+import time, os
+
 
 class ReviewsCard:
     def __init__(self, reviews_source):
@@ -10,15 +11,49 @@ class ReviewsCard:
 
     def get_book_name(self):
         try: return self.reviews_source.find_element("css selector", "a.lenta-card__book-title").text
-        except (AttributeError, TypeError) as error: return "get_book_nameError"
+        except NoSuchElementException: return "Книга не имеет названия"
+
+    def get_book_author(self):
+        try: return self.reviews_source.find_element("css selector", "a.lenta-card__author").text
+        except NoSuchElementException: return "Автор не указан"
 
     def get_count_star(self):
         try: return self.reviews_source.find_element("css selector", "span.lenta-card__mymark").text
-        except (AttributeError, TypeError) as error: return "get_count_starError"
+        except NoSuchElementException: return "Без рейтинга"
 
     def get_reviews_text(self):
         try: return self.reviews_source.find_element("css selector", "div#lenta-card__text-review-full").text
         except NoSuchElementException :return self.reviews_source.find_element("css selector", "div#lenta-card__text-review-escaped").text
+
+    def get_reviews_spoiler_text(self):
+        try:
+            text = self.reviews_source.find_element("css selector", "div#lenta-card__text-review-full").text
+            spoiler = self.reviews_source.find_element("css selector", "div.spoiler-text").text
+            text_spoiler = text.replace('спойлер', spoiler)
+            return text_spoiler
+        except NoSuchElementException :
+            text = self.reviews_source.find_element("css selector", "div#lenta-card__text-review-escaped").text
+            spoiler = self.reviews_source.find_element("css selector", "div.spoiler-text").text
+            text_spoiler = text.replace('спойлер', spoiler)
+            return text_spoiler
+
+
+class ReviewDataProcessor:
+    def __init__(self, reviews_data):
+        self.reviews_data = reviews_data
+        self.main_folder = "dataset"
+
+    def process(self):
+        book_name = self.reviews_data["name"].replace(" ", "_")
+        star_folder = os.path.join(self.main_folder, str(self.reviews_data["count_star"]))
+        os.makedirs(star_folder, exist_ok=True)
+        existing_files = [f for f in os.listdir(star_folder) if f.endswith(".txt")]
+        next_number = len(existing_files)
+        new_file_name = f"{next_number:04d}.txt"
+        new_file_path = os.path.join(star_folder, new_file_name)
+        with open(new_file_path, "w", encoding="utf-8") as file:
+            file.write(self.reviews_data["reviews"])
+
 
 def main():
     # Настройка браузера
@@ -42,24 +77,23 @@ def main():
             read_more_buttons = driver.find_elements("css selector", "a.read-more__link")
             for read_more_button in read_more_buttons:
                 try:
-                    driver.find_element("css selector", "div.popup-accept-kv__wrapper").click()
-                    driver.find_element("css selector", "btn-close").click()
+                    btn_close = driver.find_element("css selector", "a.btn-close")
+                    driver.execute_script("arguments[0].click();", btn_close)
                 except NoSuchElementException:
-                    pass
-                driver.execute_script("arguments[0].scrollIntoView();", read_more_button)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", read_more_button)
+                    driver.execute_script("arguments[0].scrollIntoView();", read_more_button)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", read_more_button)
 
             spoiler_buttons = driver.find_elements("css selector", "a.spoiler-open")
             for spoiler_button in spoiler_buttons:
                 try:
-                    driver.find_element("css selector", "div.popup-accept-kv__wrapper").click()
-                    driver.find_element("css selector", "btn-close").click()
+                    btn_close = driver.find_element("css selector", "a.btn-close")
+                    driver.execute_script("arguments[0].click();", btn_close)
                 except NoSuchElementException:
-                    pass
-                driver.execute_script("arguments[0].scrollIntoView();", spoiler_button)
-                time.sleep(1)
-                driver.execute_script("arguments[0].click();", spoiler_button)
+                    driver.execute_script("arguments[0].scrollIntoView();", spoiler_button)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", spoiler_button)
+
 
             reviews_cards = driver.find_elements("css selector", "article.review-card")
 
@@ -67,17 +101,27 @@ def main():
                 reviews_info = ReviewsCard(reviews_card)
                 try:
                     reviews_card.find_element("css selector", "div.spoiler-text")
+
                     reviews_data = {
                         "name": reviews_info.get_book_name(),
+                        "author": reviews_info.get_book_author(),
                         "count_star": reviews_info.get_count_star(),
                         "reviews": reviews_info.get_reviews_spoiler_text(),
                     }
+
+                    processor = ReviewDataProcessor(reviews_data)
+                    processor.process()
                 except NoSuchElementException:
+
                     reviews_data = {
                         "name": reviews_info.get_book_name(),
+                        "author": reviews_info.get_book_author(),
                         "count_star": reviews_info.get_count_star(),
                         "reviews": reviews_info.get_reviews_text(),
                     }
+
+                    processor = ReviewDataProcessor(reviews_data)
+                    processor.process()
 
                 print(reviews_data)
 
@@ -89,16 +133,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
