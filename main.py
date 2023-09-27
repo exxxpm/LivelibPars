@@ -52,6 +52,8 @@ class ReviewDataProcessor:
         new_file_name = f"{next_number:04d}.txt"
         new_file_path = os.path.join(star_folder, new_file_name)
         with open(new_file_path, "w", encoding="utf-8") as file:
+            file.write(self.reviews_data["author"] + "\n")
+            file.write(self.reviews_data["name"] + "\n")
             file.write(self.reviews_data["reviews"])
 
 
